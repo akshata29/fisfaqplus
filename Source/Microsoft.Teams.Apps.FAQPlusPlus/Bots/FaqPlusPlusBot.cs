@@ -946,7 +946,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                 sw.Start();
                 // create a new set of questions in the default language
                 // first translate all the questions at once
-                string[] translationQuestions = await this.translatorService.TranslateAsync(
+                var translationQuestions = await this.translatorService.TranslateAsync(
                     questions.Select(x => x.Question).ToArray(),
                     questionLanguage,
                     this.translatorService.DefaultLanguage
@@ -1030,7 +1030,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             {
                 sw.Start();
                 // first translate all the answers at once
-                string[] answersInOriginalLanguage = await this.translatorService.TranslateAsync(
+                var answersInOriginalLanguage = await this.translatorService.TranslateAsync(
                     normalizedQuestions.Select(x => x.Answer).ToArray(),
                     this.translatorService.DefaultLanguage,
                     questionLanguage

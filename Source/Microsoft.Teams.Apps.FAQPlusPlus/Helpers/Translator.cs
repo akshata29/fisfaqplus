@@ -1,6 +1,7 @@
 ﻿namespace Microsoft.Teams.Apps.FAQPlusPlus.Helpers
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Net.Http;
     using System.Text;
@@ -17,7 +18,6 @@
         private const string Host = "https://api.cognitive.microsofttranslator.com";
         private const string Path = "/translate?api-version=3.0";
         private const string UriParams = "&to=";
-
         private static readonly HttpClient client = new HttpClient();
 
         private readonly string key;
@@ -41,33 +41,69 @@
         /// <param name="targetLocale">the locare to translate to</param>
         /// <param name="cancellationToken">a cancellation token</param>
         /// <returns>the translated strings</returns>
-        public async Task<string[]> TranslateAsync(string[] texts, string sourceLocale, string targetLocale, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<IList<string>> TranslateAsync(string[] texts, string sourceLocale, string targetLocale, CancellationToken cancellationToken = default(CancellationToken))
         {
-            // TODO: ensure 1000 questions works
-            // TODO: add telemetry
-            var body = texts.Select(x => new { Text = x }).ToArray();
-            var requestBody = JsonConvert.SerializeObject(body);
+            // chunk texts into request blocks < 100 strings and < 10k char total
 
-            using (var request = new HttpRequestMessage())
+            List<List<string>> batches = new List<List<string>>();
+            int charCount = 0;
+            const int maxCharCount = 10000;
+            const int maxStringCount = 100;
+            int stringCount = 0;
+
+            List<string> currentBatch = new List<string>();
+            foreach (string text in texts)
             {
-                var uri = $"{Host}{Path}&to={targetLocale}&from={sourceLocale}";
-                request.Method = HttpMethod.Post;
-                request.RequestUri = new Uri(uri);
-                request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-                request.Headers.Add("Ocp-Apim-Subscription-Key", key);
-                request.Headers.Add("Ocp-Apim-Subscription-Region", region);
-
-                var response = await client.SendAsync(request, cancellationToken);
-
-                if (!response.IsSuccessStatusCode)
+                if ((text.Length + charCount >= maxCharCount) || stringCount >= maxStringCount)
                 {
-                    throw new Exception($"The call to the translation service returned HTTP status code {response.StatusCode}.");
+                    batches.Add(currentBatch);
+                    currentBatch = new List<string>();
+                    stringCount = 0;
+                    charCount = 0;
                 }
 
-                var responseBody = await response.Content.ReadAsStringAsync();
-                var result = JsonConvert.DeserializeObject<TranslatorResponse[]>(responseBody);
+                currentBatch.Add(text);
+                stringCount++;
+                charCount += text.Length;
+            }
 
-                return result.Select(x => x.Translations.First().Text).ToArray();
+            batches.Add(currentBatch);
+
+            List<string> results = new List<string>(texts.Length);
+            foreach (var batch in batches)
+            {
+                var result = await TranslateStrings(batch);
+                results.AddRange(result);
+            }
+
+            return results;
+
+            async Task<IEnumerable<string>> TranslateStrings(IList<string> strings)
+            {
+                var body = strings.Select(x => new { Text = x }).ToArray();
+                var requestBody = JsonConvert.SerializeObject(body);
+
+                using (var request = new HttpRequestMessage())
+                {
+                    var uri = $"{Host}{Path}&to={targetLocale}&from={sourceLocale}";
+                    request.Method = HttpMethod.Post;
+                    request.RequestUri = new Uri(uri);
+                    request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+                    request.Headers.Add("Ocp-Apim-Subscription-Key", key);
+                    request.Headers.Add("Ocp-Apim-Subscription-Region", region);
+
+                    var response = await client.SendAsync(request, cancellationToken);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new Exception($"The call to the translation service returned HTTP status code {response.StatusCode}.");
+                    }
+
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    var result = JsonConvert.DeserializeObject<TranslatorResponse[]>(responseBody);
+
+                    return result.Select(x => x.Translations.First().Text);
+                }
             }
         }
 
