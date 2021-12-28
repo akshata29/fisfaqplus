@@ -126,6 +126,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         private const string EnglishSpanish = "es";
         private const string SpanishEnglish = "in";
         private const string SpanishSpanish = "it";
+        private const string BatchResultsDirectory = "results/";
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FaqPlusPlusBot"/> class.
@@ -1008,7 +1009,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         {
             await batchFileProvider.UpsertBatchFileAsync(new BatchFileEntity
             {
-                Id = id,
+                Id = BatchResultsDirectory + id,
                 FileBytes = answersContent
             });
         }
@@ -1020,7 +1021,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         /// <returns>the file containing the answers</returns>
         private async Task<byte[]> GetBatchAnswers(string id)
         {
-            var entity = await this.batchFileProvider.GetBatchFileAsync(id);
+            var entity = await this.batchFileProvider.GetBatchFileAsync(BatchResultsDirectory + id);
             return entity?.FileBytes;
         }
 
