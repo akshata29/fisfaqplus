@@ -135,7 +135,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus
             services.AddSingleton<ConversationState>();
 
             // Create the Microsoft Translator responsible for making calls to the Cognitive Services translation service
-            //services.AddSingleton<Translator>();
+            services.AddSingleton<Translator>();
             //services.AddSingleton<TranslationSettings>();
 
             // Create the Translation Middleware that will be added to the middleware pipeline in the AdapterWithErrorHandler

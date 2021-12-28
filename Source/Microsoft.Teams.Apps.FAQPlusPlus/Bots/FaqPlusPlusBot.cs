@@ -94,6 +94,8 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
 
         // telemetry event names
         private const string EVENT_ANSWERED_QUESTION_BULK = "QuestionAnsweredBulk";
+        private const string EVENT_TRANSLATED_QUESTION_BULK = "QuestionTranslatedBulk";
+        private const string EVENT_TRANSLATED_ANSWERS_BULK = "QuestionTranslatedBulk";
         private const string EVENT_UPDATED_QUESTION = "QuestionUpdated";
         private const string EVENT_MESSAGE_RECEIVED = "MessageReceived";
         private const string EVENT_QUESTION_ADDED = "QuestionAdded";
@@ -122,6 +124,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         private readonly IHttpClientFactory clientFactory;
         private readonly IStatePropertyAccessor<string> languagePreference;
         private readonly UserState userState;
+        private readonly Translator translatorService;
         private const string EnglishEnglish = "en";
         private const string EnglishSpanish = "es";
         private const string SpanishEnglish = "in";
@@ -158,7 +161,8 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             IOptionsMonitor<BotSettings> optionsAccessor,
             ILogger<FaqPlusPlusBot> logger,
             UserState state,
-            TelemetryClient telemetryClient)
+            TelemetryClient telemetryClient,
+            Translator translatorService)
         {
             this.clientFactory = clientFactory;
             this.configurationProvider = configurationProvider;
@@ -187,6 +191,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
 
             this.userState = state ?? throw new NullReferenceException(nameof(state));
             this.languagePreference = state.CreateProperty<string>("LanguagePreference");
+            this.translatorService = translatorService;
         }
 
         /// <summary>
@@ -907,12 +912,12 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             }
 
             // Check if a file attachment of questions was received
-            (string filename, IList<AnswerItem> questions) = await TryGetQuestionsFromAttachment(turnContext.Activity);
+            (string filename, IList<AnswerItem> questions, string language) = await TryGetQuestionsFromAttachment(turnContext.Activity);
 
             // If we have a questions from the attachment, process the them to find out the answers from qnA maker
             if (questions != null)
             {
-                await ProcessInPersonalChatQuestionsAttachment(turnContext, filename, questions, cancellationToken);
+                await ProcessInPersonalChatQuestionsAttachment(turnContext, filename, questions, language, cancellationToken);
 
             }
             else
@@ -922,20 +927,62 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             }
         }
 
-        private async Task ProcessInPersonalChatQuestionsAttachment(ITurnContext<IMessageActivity> turnContext, string filename, IList<AnswerItem> questions, CancellationToken cancellationToken)
+        private async Task ProcessInPersonalChatQuestionsAttachment(ITurnContext<IMessageActivity> turnContext, string filename, IList<AnswerItem> questions, string questionLanguage, CancellationToken cancellationToken)
         {
             string extension = Path.GetExtension(filename);
+            var sw = new System.Diagnostics.Stopwatch();
 
             await turnContext.SendActivityAsync($"I received your {extension.Substring(1)} file with {questions.Count} questions. One moment while I consult QnA Maker for the answers");
             await SendTypingIndicatorAsync(turnContext);
 
-            var sw = new System.Diagnostics.Stopwatch();
+            IList<AnswerItem> normalizedQuestions;
+            if (questionLanguage == translatorService.DefaultLanguage)
+            {
+                // just use the original list in place
+                normalizedQuestions = questions;
+            }
+            else
+            {
+                sw.Start();
+                // create a new set of questions in the default language
+                // first translate all the questions at once
+                string[] translationQuestions = await this.translatorService.TranslateAsync(
+                    questions.Select(x => x.Question).ToArray(),
+                    questionLanguage,
+                    this.translatorService.DefaultLanguage
+                );
+                sw.Stop();
+                this.telemetryClient.TrackEvent(
+                    EVENT_TRANSLATED_QUESTION_BULK,
+                    new Dictionary<string, string>
+                    {
+                        { "UserName" ,turnContext.Activity.From.Name},
+                        { "UserAadId ", turnContext.Activity.From?.AadObjectId ?? "" },
+                        { "Product", options.ProductName },
+                        { "Language", questionLanguage },
+                    },
+                    new Dictionary<string, double>
+                    {
+                        { "Seconds", sw.Elapsed.TotalSeconds},
+                        { "Count", questions.Count},
+                    });
+
+                // rebuild the normalizedQuestion list from the translated questions
+                normalizedQuestions = new AnswerItem[questions.Count];
+                for (int i = 0; i < questions.Count; i++)
+                {
+                    normalizedQuestions[i] = new AnswerItem();
+                    normalizedQuestions[i].Metadata = questions[i].Metadata;
+                    normalizedQuestions[i].Question = translationQuestions[i];
+                }
+            }
+
             sw.Start();
 
             // Create QnA object to store the answers from QnA
-            for (int i = 0; i < questions.Count; i++)
+            for (int i = 0; i < normalizedQuestions.Count; i++)
             {
-                var question = questions[i];
+                var question = normalizedQuestions[i];
                 if (string.IsNullOrEmpty(question.Question))
                 {
                     question.Answer = "ERROR reading input";
@@ -969,7 +1016,8 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                     { "UserName" ,turnContext.Activity.From.Name},
                     { "UserAadId ", turnContext.Activity.From?.AadObjectId ?? "" },
                     { "Product", options.ProductName },
-                },
+                    { "Language", questionLanguage },
+               },
                 new Dictionary<string, double>
                 {
                     { "Seconds", sw.Elapsed.TotalSeconds},
@@ -977,6 +1025,38 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                 });
 
             this.logger.LogInformation("Queried QnA Maker for {Count} questions in {Seconds} seconds", questions.Count, sw.Elapsed.TotalSeconds);
+
+            if (questionLanguage != translatorService.DefaultLanguage)
+            {
+                sw.Start();
+                // first translate all the answers at once
+                string[] answersInOriginalLanguage = await this.translatorService.TranslateAsync(
+                    normalizedQuestions.Select(x => x.Answer).ToArray(),
+                    this.translatorService.DefaultLanguage,
+                    questionLanguage
+                );
+                sw.Stop();
+                this.telemetryClient.TrackEvent(
+                    EVENT_TRANSLATED_ANSWERS_BULK,
+                    new Dictionary<string, string>
+                    {
+                        { "UserName" ,turnContext.Activity.From.Name},
+                        { "UserAadId ", turnContext.Activity.From?.AadObjectId ?? "" },
+                        { "Product", options.ProductName },
+                        { "Language", questionLanguage },
+                    },
+                    new Dictionary<string, double>
+                    {
+                        { "Seconds", sw.Elapsed.TotalSeconds},
+                        { "Count", questions.Count},
+                    });
+
+                // populate the original question list with the translated answers
+                for (int i = 0; i < questions.Count; i++)
+                {
+                    questions[i].Answer = answersInOriginalLanguage[i];
+                }
+            }
 
             string newFilename = Path.GetFileNameWithoutExtension(filename) + turnContext.Activity.Id + extension;
 
@@ -1054,10 +1134,12 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             }
         }
 
-        private async Task<(string name, IList<AnswerItem> answers)> TryGetQuestionsFromAttachment(IMessageActivity activity)
+        private async Task<(string name, IList<AnswerItem> answers, string language)> TryGetQuestionsFromAttachment(IMessageActivity activity)
         {
             string contentUrl = null;
             string filename = null;
+            string language = translatorService.DefaultLanguage;
+
             IList<AnswerItem> answerItems = null;
 
             if (activity.ChannelId == Channels.Msteams)
@@ -1106,13 +1188,18 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                     case XLSX_EXTENSION:
                         using (Stream stream = await response.Content.ReadAsStreamAsync())
                         {
-                            answerItems = XlsxHelper.QuestionsFromXlsx(stream);
+                            string tmpLanguage;
+                            (answerItems, tmpLanguage) = XlsxHelper.QuestionsFromXlsx(stream);
+                            if (!string.IsNullOrWhiteSpace(language) && translatorService.IsValidTranslationLanguage(tmpLanguage))
+                            {
+                                language = tmpLanguage;
+                            }
                         }
                         break;
                 }
             }
 
-            return (filename, answerItems);
+            return (filename, answerItems, language);
         }
 
         /// <summary>
