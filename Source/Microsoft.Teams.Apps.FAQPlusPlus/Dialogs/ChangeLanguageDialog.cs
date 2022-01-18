@@ -23,7 +23,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Dialogs
         public ChangeLanguageDialog(UserState userState, ILogger<ChangeLanguageDialog> logger, TranslatorService translator)
             : base(nameof(ChangeLanguageDialog))
         {
-            _languagePreferenceProperty = userState.CreateProperty<string>("LanguagePreference");
+            _languagePreferenceProperty = userState.CreateProperty<string>(TranslationMiddleware.PreferredLanguageSetting);
             _logger = logger;
             _translator = translator;
 

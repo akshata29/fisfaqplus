@@ -198,7 +198,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             this.userState = userState ?? throw new NullReferenceException(nameof(userState));
             this.conversationState = conversationState ?? throw new NullReferenceException(nameof(conversationState));
             this.rootPersonalDialog = rootPersonalDialog;
-            this.languagePreference = userState.CreateProperty<string>("LanguagePreference");
+            this.languagePreference = userState.CreateProperty<string>(TranslationMiddleware.PreferredLanguageSetting);
             this.translatorService = translatorService;
         }
 

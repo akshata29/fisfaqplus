@@ -14,6 +14,7 @@
     /// </summary>
     public class TranslationMiddleware : IMiddleware
     {
+        public const string PreferredLanguageSetting = "TranslationLanguagePreference";
         private readonly TranslatorService translator;
         private readonly TranslationSettings translatorSettings;
 
@@ -34,7 +35,7 @@
                 throw new ArgumentNullException(nameof(userState));
             }
 
-            this.languageStateProperty = userState.CreateProperty<string>("LanguagePreference");
+            this.languageStateProperty = userState.CreateProperty<string>(PreferredLanguageSetting);
         }
 
         /// <summary>
@@ -110,6 +111,14 @@
 
             try
             {
+                string text = turnContext.Activity.Text;
+
+                // dont translate responses for the change language dialog
+                if (text.Length == 2 && await translator.IsValidTranslationLanguage(text))
+                {
+                    return (false, defaultLanguage);
+                }
+
                 string userLanguage = await this.languageStateProperty.GetAsync(turnContext, () => defaultLanguage, cancellationToken) ?? defaultLanguage;
 
                 return (userLanguage != defaultLanguage, userLanguage);
