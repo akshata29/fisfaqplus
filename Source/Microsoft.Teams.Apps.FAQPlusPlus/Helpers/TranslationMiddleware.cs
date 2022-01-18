@@ -14,7 +14,7 @@
     /// </summary>
     public class TranslationMiddleware : IMiddleware
     {
-        private readonly Translator translator;
+        private readonly TranslatorService translator;
         private readonly TranslationSettings translatorSettings;
 
         private readonly IStatePropertyAccessor<string> languageStateProperty;
@@ -25,7 +25,7 @@
         /// <param name="translator">Translator implementation to be used for text translation.</param>
         /// <param name="translatorSettings">Default Language Settings</param>
         /// <param name="userState">User Parameter</param>
-        public TranslationMiddleware(Translator translator, TranslationSettings translatorSettings, UserState userState)
+        public TranslationMiddleware(TranslatorService translator, TranslationSettings translatorSettings, UserState userState)
         {
             this.translator = translator ?? throw new ArgumentNullException(nameof(translator));
             this.translatorSettings = translatorSettings ?? throw new ArgumentNullException(nameof(translatorSettings));

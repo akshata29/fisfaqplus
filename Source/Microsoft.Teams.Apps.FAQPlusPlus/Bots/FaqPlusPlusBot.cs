@@ -21,6 +21,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
     using Microsoft.Azure.CognitiveServices.Knowledge.QnAMaker;
     using Microsoft.Azure.CognitiveServices.Knowledge.QnAMaker.Models;
     using Microsoft.Bot.Builder;
+    using Microsoft.Bot.Builder.Dialogs;
     using Microsoft.Bot.Builder.Teams;
     using Microsoft.Bot.Connector;
     using Microsoft.Bot.Connector.Authentication;
@@ -34,6 +35,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
     using Microsoft.Teams.Apps.FAQPlusPlus.Common.Models;
     using Microsoft.Teams.Apps.FAQPlusPlus.Common.Models.Configuration;
     using Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers;
+    using Microsoft.Teams.Apps.FAQPlusPlus.Dialogs;
     using Microsoft.Teams.Apps.FAQPlusPlus.Helpers;
     using Microsoft.Teams.Apps.FAQPlusPlus.Properties;
     using Newtonsoft.Json;
@@ -99,7 +101,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         private const string EVENT_UPDATED_QUESTION = "QuestionUpdated";
         private const string EVENT_MESSAGE_RECEIVED = "MessageReceived";
         private const string EVENT_QUESTION_ADDED = "QuestionAdded";
-        private const string EVENT_ANSWERED_QUESTION_SINGLE = "QuestionAnsweredSingle";
+        public const string EVENT_ANSWERED_QUESTION_SINGLE = "QuestionAnsweredSingle";
 
         /// <summary>
         /// Represents a set of key/value application configuration properties for FaqPlusPlus bot.
@@ -124,7 +126,9 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         private readonly IHttpClientFactory clientFactory;
         private readonly IStatePropertyAccessor<string> languagePreference;
         private readonly UserState userState;
-        private readonly Translator translatorService;
+        private readonly ConversationState conversationState;
+        private readonly PersonalChatMainDialog rootPersonalDialog;
+        private readonly TranslatorService translatorService;
         private const string EnglishEnglish = "en";
         private const string EnglishSpanish = "es";
         private const string SpanishEnglish = "in";
@@ -160,9 +164,11 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             IKnowledgeBaseSearchService knowledgeBaseSearchService,
             IOptionsMonitor<BotSettings> optionsAccessor,
             ILogger<FaqPlusPlusBot> logger,
-            UserState state,
+            UserState userState,
+            PersonalChatMainDialog rootPersonalDialog,
+            ConversationState conversationState,
             TelemetryClient telemetryClient,
-            Translator translatorService)
+            TranslatorService translatorService)
         {
             this.clientFactory = clientFactory;
             this.configurationProvider = configurationProvider;
@@ -189,8 +195,10 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             this.appBaseUri = this.options.AppBaseUri;
             this.knowledgeBaseSearchService = knowledgeBaseSearchService;
 
-            this.userState = state ?? throw new NullReferenceException(nameof(state));
-            this.languagePreference = state.CreateProperty<string>("LanguagePreference");
+            this.userState = userState ?? throw new NullReferenceException(nameof(userState));
+            this.conversationState = conversationState ?? throw new NullReferenceException(nameof(conversationState));
+            this.rootPersonalDialog = rootPersonalDialog;
+            this.languagePreference = userState.CreateProperty<string>("LanguagePreference");
             this.translatorService = translatorService;
         }
 
@@ -203,7 +211,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         /// <remarks>
         /// Reference link: https://docs.microsoft.com/en-us/dotnet/api/microsoft.bot.builder.activityhandler.onturnasync?view=botbuilder-dotnet-stable.
         /// </remarks>
-        public override Task OnTurnAsync(
+        public override async Task OnTurnAsync(
             ITurnContext turnContext,
             CancellationToken cancellationToken = default)
         {
@@ -212,7 +220,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                 if (turnContext != null & !this.IsActivityFromExpectedTenant(turnContext))
                 {
                     this.logger.LogWarning($"Unexpected tenant id {turnContext?.Activity.Conversation.TenantId}");
-                    return Task.CompletedTask;
+                    return;
                 }
 
                 // Get the current culture info to use in resource files
@@ -223,12 +231,17 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                     CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(locale);
                 }
 
-                return base.OnTurnAsync(turnContext, cancellationToken);
+                await base.OnTurnAsync(turnContext, cancellationToken);
+
+
+                await conversationState.SaveChangesAsync(turnContext, false, cancellationToken);
+                await userState.SaveChangesAsync(turnContext, false, cancellationToken);
+
             }
             catch (Exception ex)
             {
                 this.logger.LogError(ex, "Error at OnTurnAsync()");
-                return base.OnTurnAsync(turnContext, cancellationToken);
+                await base.OnTurnAsync(turnContext, cancellationToken);
             }
         }
 
@@ -1107,31 +1120,8 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
 
         private async Task ProcessInPersonalChatMessage(IMessageActivity message, ITurnContext<IMessageActivity> turnContext)
         {
-            string text = message.Text?.ToLower()?.Trim() ?? string.Empty;
-
-            switch (text)
-            {
-                case Constants.AskAnExpert:
-                    this.logger.LogInformation("Sending user ask an expert card");
-                    await turnContext.SendActivityAsync(MessageFactory.Attachment(AskAnExpertCard.GetCard())).ConfigureAwait(false);
-                    break;
-
-                case Constants.ShareFeedback:
-                    this.logger.LogInformation("Sending user feedback card");
-                    await turnContext.SendActivityAsync(MessageFactory.Attachment(ShareFeedbackCard.GetCard())).ConfigureAwait(false);
-                    break;
-
-                case Constants.TakeATour:
-                    this.logger.LogInformation("Sending user tour card");
-                    var userTourCards = TourCarousel.GetUserTourCards(this.appBaseUri);
-                    await turnContext.SendActivityAsync(MessageFactory.Carousel(userTourCards)).ConfigureAwait(false);
-                    break;
-
-                default:
-                    this.logger.LogInformation("Sending input to QnAMaker");
-                    await this.GetQuestionAnswerReplyAsync(turnContext, message).ConfigureAwait(false);
-                    break;
-            }
+            // dialogs can happen in personal chat when its not an attachment
+            await rootPersonalDialog.RunAsync(turnContext, conversationState.CreateProperty<DialogState>(nameof(DialogState)), CancellationToken.None);
         }
 
         private async Task<(string name, IList<AnswerItem> answers, string language)> TryGetQuestionsFromAttachment(IMessageActivity activity)
@@ -1190,7 +1180,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                         {
                             string tmpLanguage;
                             (answerItems, tmpLanguage) = XlsxHelper.QuestionsFromXlsx(stream);
-                            if (!string.IsNullOrWhiteSpace(language) && translatorService.IsValidTranslationLanguage(tmpLanguage))
+                            if (!string.IsNullOrWhiteSpace(language) && await translatorService.IsValidTranslationLanguage(tmpLanguage))
                             {
                                 language = tmpLanguage;
                             }

@@ -22,16 +22,15 @@
         /// <param name="httpClient">Http Client</param>
         /// <param name="logger">logger</param>
         /// <param name="conversationState">conversationState</param>
-        public AdapterWithErrorHandler(ICredentialProvider credentialProvider, IChannelProvider channelProvider, ConversationState conversationState, ILogger<BotFrameworkHttpAdapter> logger)
+        public AdapterWithErrorHandler(ICredentialProvider credentialProvider, IChannelProvider channelProvider, ConversationState conversationState, ILogger<BotFrameworkHttpAdapter> logger, TranslationMiddleware translationMiddleware)
             : base(credentialProvider, channelProvider, logger)
         {
-            //if (translationMiddleware == null)
-            //{
-            //    throw new NullReferenceException(nameof(translationMiddleware));
-            //}
-
-            // Add translation middleware to the adapter's middleware pipeline
-            //this.Use(translationMiddleware);
+            if (translationMiddleware != null)
+            {
+                // Add translation middleware to the adapter's middleware pipeline
+                logger.LogInformation("Using translation middleware");
+                this.Use(translationMiddleware);
+            }
 
             OnTurnError = async (turnContext, exception) =>
             {

@@ -23,6 +23,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus
     using Microsoft.Teams.Apps.FAQPlusPlus.Bots;
     using Microsoft.Teams.Apps.FAQPlusPlus.Common.Models.Configuration;
     using Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers;
+    using Microsoft.Teams.Apps.FAQPlusPlus.Dialogs;
     using Microsoft.Teams.Apps.FAQPlusPlus.Helpers;
 
     /// <summary>
@@ -134,12 +135,15 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus
             services.AddSingleton<UserState>();
             services.AddSingleton<ConversationState>();
 
+            services.AddSingleton<PersonalChatMainDialog>();
+            services.AddTransient<ChangeLanguageDialog>();
+
             // Create the Microsoft Translator responsible for making calls to the Cognitive Services translation service
-            services.AddSingleton<Translator>();
-            //services.AddSingleton<TranslationSettings>();
+            services.AddSingleton<TranslatorService>();
+            services.AddSingleton<TranslationSettings>();
 
             // Create the Translation Middleware that will be added to the middleware pipeline in the AdapterWithErrorHandler
-            //services.AddSingleton<TranslationMiddleware>();
+            services.AddSingleton<TranslationMiddleware>();
 
             services.AddSingleton<ICredentialProvider, ConfigurationCredentialProvider>();
             services.AddSingleton<ITicketsProvider>(new TicketsProvider(this.Configuration["StorageConnectionString"]));

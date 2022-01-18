@@ -76,6 +76,11 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common
         public const string AskAnExpert = "ask an expert";
 
         /// <summary>
+        /// ChangeLanguage - changes the language the bot translates to/from
+        /// </summary>
+        public const string ChangeLanguage = "change language";
+
+        /// <summary>
         /// Feedback - text that renders share feedback card.
         /// </summary>
         public const string ShareFeedback = "share feedback";

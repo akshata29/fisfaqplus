@@ -8,10 +8,11 @@
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.Logging;
     using Microsoft.Teams.Apps.FAQPlusPlus.Models;
     using Newtonsoft.Json;
 
-    public class Translator
+    public class TranslatorService
     {
         public readonly string DefaultLanguage = "en";
 
@@ -22,15 +23,17 @@
 
         private readonly string key;
         private readonly string region;
+        private readonly ILogger<TranslatorService> _logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="Translator"/> class.
+        /// Initializes a new instance of the <see cref="TranslatorService"/> class.
         /// </summary>
         /// <param name="configuration">Configuration info</param>
-        public Translator(IConfiguration configuration)
+        public TranslatorService(IConfiguration configuration, ILogger<TranslatorService> logger)
         {
             this.key = configuration["TranslatorKey"] ?? throw new ArgumentNullException(nameof(key));
             this.region = configuration["TranslatorKeyRegion"] ?? throw new ArgumentNullException(nameof(region));
+            _logger = logger;
         }
 
         /// <summary>
@@ -144,11 +147,31 @@
             }
         }
 
-        private readonly string[] validLanguages = new string[] { "en", "es" };
+        private static Dictionary<string, TranslatorLanguageDescription> validLanguages = null;
 
-        internal bool IsValidTranslationLanguage(string language)
+        public async Task<IReadOnlyDictionary<string, TranslatorLanguageDescription>> GetAvailableLanguages()
         {
-            return validLanguages.Contains(language);
+            if (validLanguages == null)
+            {
+                try
+                {
+                    string responseString = await client.GetStringAsync("https://api.cognitive.microsofttranslator.com/languages?api-version=3.0&scope=translation");
+                    var response = JsonConvert.DeserializeObject<TranslatorLanguagesResponse>(responseString);
+                    validLanguages = response.translation;
+                }
+                catch(Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to get list of valid languages from translator service");
+                }
+            }
+
+            return validLanguages;
+        }
+
+        public async Task<bool> IsValidTranslationLanguage(string language)
+        {
+            var validLanguages = await GetAvailableLanguages();
+            return validLanguages.ContainsKey(language);
         }
     }
 }
