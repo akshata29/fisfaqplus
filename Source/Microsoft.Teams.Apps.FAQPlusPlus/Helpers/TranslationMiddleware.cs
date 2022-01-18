@@ -5,6 +5,7 @@
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AdaptiveCards;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Schema;
 
@@ -105,6 +106,34 @@
                 {
                     activity.Text = await this.translator.TranslateAsync(activity.Text, targetLocale);
                 }
+            }
+
+            foreach (var attachment in activity.Attachments)
+            {
+                await TranslateAttachment(attachment, targetLocale, cancellationToken);
+            }
+        }
+
+        private async Task TranslateAttachment(Attachment attachment, string targetLocale, CancellationToken cancellationToken)
+        {
+            switch (attachment.Content)
+            {
+                case AdaptiveCard card:
+                    await TranslateAdaptiveCard(card, targetLocale, cancellationToken);
+                    break;
+                default:
+                    // do nothing
+                    break;
+            }
+        }
+
+        private async Task TranslateAdaptiveCard(AdaptiveCard card, string targetLocale, CancellationToken cancellationToken)
+        {
+            var block1 = card.Body[0] as AdaptiveTextBlock;
+            if (block1 != null && block1.Text == "Here's what I found:")
+            {
+                var answerTextBlock = (AdaptiveTextBlock)card.Body[1];
+                answerTextBlock.Text = await this.translator.TranslateAsync(answerTextBlock.Text, targetLocale, cancellationToken);
             }
         }
 
