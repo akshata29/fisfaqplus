@@ -15,10 +15,12 @@
     public class TranslationMiddleware : IMiddleware
     {
         public const string PreferredLanguageSetting = "TranslationLanguagePreference";
+        public const string PauseTranslationSetting = "TranslationLanguagePaused";
         private readonly TranslatorService translator;
         private readonly TranslationSettings translatorSettings;
 
         private readonly IStatePropertyAccessor<string> languageStateProperty;
+        private readonly IStatePropertyAccessor<bool> pauseTranslationProperty;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TranslationMiddleware"/> class.
@@ -36,6 +38,7 @@
             }
 
             this.languageStateProperty = userState.CreateProperty<string>(PreferredLanguageSetting);
+            this.pauseTranslationProperty = userState.CreateProperty<bool>(PauseTranslationSetting);
         }
 
         /// <summary>
@@ -113,12 +116,15 @@
             {
                 string text = turnContext.Activity.Text;
 
-                // dont translate responses for the change language dialog
-                if (text.Length == 2 && await translator.IsValidTranslationLanguage(text))
+                // dont translate if the bot has temporarily disabled it
+                // e.g. when receiving the language preference from the user
+                bool translationPaused = await pauseTranslationProperty.GetAsync(turnContext, () => false, cancellationToken);
+                if (translationPaused)
                 {
                     return (false, defaultLanguage);
                 }
 
+                // is the user's preferred language different from the default?
                 string userLanguage = await this.languageStateProperty.GetAsync(turnContext, () => defaultLanguage, cancellationToken) ?? defaultLanguage;
 
                 return (userLanguage != defaultLanguage, userLanguage);

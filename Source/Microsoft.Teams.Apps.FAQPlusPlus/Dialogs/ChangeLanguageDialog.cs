@@ -19,11 +19,13 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Dialogs
         private readonly ILogger<ChangeLanguageDialog> _logger;
         private readonly TranslatorService _translator;
         private readonly IStatePropertyAccessor<string> _languagePreferenceProperty;
+        private readonly IStatePropertyAccessor<bool> _pauseTranslationProperty;
 
         public ChangeLanguageDialog(UserState userState, ILogger<ChangeLanguageDialog> logger, TranslatorService translator)
             : base(nameof(ChangeLanguageDialog))
         {
             _languagePreferenceProperty = userState.CreateProperty<string>(TranslationMiddleware.PreferredLanguageSetting);
+            _pauseTranslationProperty = userState.CreateProperty<bool>(TranslationMiddleware.PauseTranslationSetting);
             _logger = logger;
             _translator = translator;
 
@@ -35,6 +37,9 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Dialogs
 
         private async Task<DialogTurnResult> StartDialogAsync(WaterfallStepContext stepContext, CancellationToken cancellationToken)
         {
+            // disable translation for this prompt because the choices should not be translated
+            await _pauseTranslationProperty.SetAsync(stepContext.Context, true);
+
             string langPref = await _languagePreferenceProperty.GetAsync(stepContext.Context, () => _translator.DefaultLanguage, cancellationToken);
             return await stepContext.PromptAsync("languagePrompt", new PromptOptions
             {
@@ -44,6 +49,9 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Dialogs
 
         private async Task<DialogTurnResult> ProcessLanguageResponse(WaterfallStepContext stepContext, CancellationToken cancellationToken)
         {
+            // re-enable translation
+            await _pauseTranslationProperty.SetAsync(stepContext.Context, false);
+
             string choice = stepContext.Result.ToString()?.Trim()?.ToLower();
 
             if (choice != null)
