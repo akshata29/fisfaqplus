@@ -20,7 +20,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
     /// <summary>
     /// Qna maker service provider class.
     /// </summary>
-    public class QnaServiceProvider : IQnaServiceProvider
+    public partial class QnaServiceProvider : IQnaServiceProvider
     {
         /// <summary>
         /// Environment type.
@@ -201,7 +201,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
         /// <param name="previousQnAId">Id of previous question.</param>
         /// <param name="previousUserQuery">Previous question information.</param>
         /// <returns>QnaSearchResultList result as response.</returns>
-        public async Task<QnASearchResultList> GenerateAnswerAsync(string question, bool isTestKnowledgeBase, string previousQnAId = null, string previousUserQuery = null)
+        public async Task<QnASearchResultList> GenerateAnswerAsync(string question, bool isTestKnowledgeBase, string previousQnAId = null, string previousUserQuery = null, IList<QueryTag> tags = null)
         {
             var knowledgeBaseId = await this.configurationProvider.GetSavedEntityDetailAsync(ConfigurationEntityTypes.KnowledgeBaseId).ConfigureAwait(false);
 
@@ -210,6 +210,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
                 IsTest = isTestKnowledgeBase,
                 Question = question?.Trim(),
                 ScoreThreshold = Convert.ToDouble(this.options.ScoreThreshold, CultureInfo.InvariantCulture),
+                StrictFilters = tags?.Select(x => new MetadataDTO(x.Name, x.Value)).ToList(),
             };
 
             if (previousQnAId != null && previousUserQuery != null)
@@ -220,8 +221,9 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
                     PreviousUserQuery = previousUserQuery,
                 };
             }
-            return await this.qnaMakerClient.Knowledgebase.GenerateAnswerAsync(knowledgeBaseId, queryDTO).ConfigureAwait(false);
-            //return await this.qnaMakerRuntimeClient.Runtime.GenerateAnswerAsync(knowledgeBaseId, queryDTO).ConfigureAwait(false);
+
+            QnASearchResultList qnASearchResultList = await this.qnaMakerClient.Knowledgebase.GenerateAnswerAsync(knowledgeBaseId, queryDTO).ConfigureAwait(false);
+            return qnASearchResultList;
         }
 
         /// <summary>
@@ -232,7 +234,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
         public async Task<IEnumerable<QnADTO>> DownloadKnowledgebaseAsync(string knowledgeBaseId, bool isTestEnvironment = false)
         {
             var qnaDocuments = await this.qnaMakerClient.Knowledgebase.DownloadAsync(
-                knowledgeBaseId, 
+                knowledgeBaseId,
                 environment: isTestEnvironment ? TestEnvironmentType : ProdEnvironmentType
                 ).ConfigureAwait(false);
             return qnaDocuments.QnaDocuments;

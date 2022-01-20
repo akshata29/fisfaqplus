@@ -944,7 +944,18 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                 {
                     try
                     {
-                        question.Answer = await this.GenerateAnswer(question.Question);
+                        QueryTag[] tags = question.Metadata?.Split(',').Select(x =>
+                        {
+                            string[] parts = x.Split(':');
+                            return new QueryTag() { Name = parts[0], Value = parts[1] };
+                        }).ToArray();
+
+                        if (tags?.Length == 0)
+                        {
+                            tags = null;
+                        }
+
+                        question.Answer = await this.GenerateAnswer(question.Question, tags);
                     }
                     catch (Exception ex)
                     {
@@ -1850,9 +1861,9 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             }
         }
 
-        private async Task<string> GenerateAnswer(string question)
+        private async Task<string> GenerateAnswer(string question, QueryTag[] tags = null)
         {
-            var queryResult = await this.qnaServiceProvider.GenerateAnswerAsync(question: question, isTestKnowledgeBase: false).ConfigureAwait(false);
+            var queryResult = await this.qnaServiceProvider.GenerateAnswerAsync(question: question, isTestKnowledgeBase: false, tags: tags).ConfigureAwait(false);
             var answer = string.Empty;
 
             if (queryResult.Answers.First().Id != -1)
