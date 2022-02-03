@@ -1,5 +1,9 @@
 ﻿namespace Microsoft.Teams.Apps.FAQPlusPlus.Helpers
 {
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.Logging;
+    using Microsoft.Teams.Apps.FAQPlusPlus.Models;
+    using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -7,14 +11,10 @@
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Extensions.Configuration;
-    using Microsoft.Extensions.Logging;
-    using Microsoft.Teams.Apps.FAQPlusPlus.Models;
-    using Newtonsoft.Json;
 
     public class TranslatorService
     {
-        public readonly string DefaultLanguage = "en";
+        public readonly string DefaultLanguageCode = "en";
 
         private const string Host = "https://api.cognitive.microsofttranslator.com";
         private const string Path = "/translate?api-version=3.0";
@@ -147,7 +147,26 @@
             }
         }
 
-        private static Dictionary<string, TranslatorLanguageDescription> validLanguages = null;
+        private static Dictionary<string, TranslatorLanguageDescription> validLanguages;
+        //        = new()
+        //        {
+        //            { "de", new TranslatorLanguageDescription { name = "German", nativeName = "Deutsch" } },
+        //            { "fr", new TranslatorLanguageDescription { name = "French", nativeName = "Français" } },
+        //            { "es", new TranslatorLanguageDescription { name = "Spanish", nativeName = "Español" } },
+        //            { "ja", new TranslatorLanguageDescription { name = "Japanese", nativeName = "日本語" } },
+        //            { "ko", new TranslatorLanguageDescription { name = "Korean", nativeName = "한국어" } },
+        //            { "vi", new TranslatorLanguageDescription { name = "Vietnamese", nativeName = "Tiếng Việt" } },
+        //            { "yue", new TranslatorLanguageDescription { name="Cantonese", nativeName = "粵語" } },
+        //        }
+        //        };
+
+        //        German
+        //        French
+        //Spanish
+        //Portuguese
+        //Japanese
+        //Korean
+        //Vietnamese
 
         public async Task<IReadOnlyDictionary<string, TranslatorLanguageDescription>> GetAvailableLanguages()
         {
@@ -159,7 +178,7 @@
                     var response = JsonConvert.DeserializeObject<TranslatorLanguagesResponse>(responseString);
                     validLanguages = response.translation;
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to get list of valid languages from translator service");
                 }
@@ -168,10 +187,31 @@
             return validLanguages;
         }
 
+        public async Task<string> GetCodeForLanguage(string language)
+        {
+            var validLanguages = await GetAvailableLanguages();
+            var result = validLanguages.Single(kvp => string.Equals(kvp.Value.name, language, StringComparison.InvariantCultureIgnoreCase)
+                                                   || string.Equals(kvp.Value.nativeName, language, StringComparison.InvariantCultureIgnoreCase));
+            return result.Key;
+        }
+
+        public async Task<string> GetLanguageForCode(string languageCode)
+        {
+            var validLanguages = await GetAvailableLanguages();
+            return validLanguages[languageCode].name;
+        }
+
         public async Task<bool> IsValidTranslationLanguage(string language)
         {
             var validLanguages = await GetAvailableLanguages();
-            return validLanguages.ContainsKey(language);
+            return validLanguages.Any(l => string.Equals(l.Value.name, language, StringComparison.InvariantCultureIgnoreCase)
+                                        || string.Equals(l.Value.nativeName, language, StringComparison.InvariantCultureIgnoreCase));
+        }
+
+        public async Task<bool> IsValidTranslationLanguageCode(string languageCode)
+        {
+            var validLanguages = await GetAvailableLanguages();
+            return validLanguages.ContainsKey(languageCode);
         }
     }
 }

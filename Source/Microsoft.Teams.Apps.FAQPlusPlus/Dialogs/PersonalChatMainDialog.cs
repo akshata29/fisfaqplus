@@ -59,9 +59,12 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Dialogs
             switch (text)
             {
                 case Constants.ChangeLanguage:
+                case "language changes":
+                case "changes language":
+                case "changes the language":
                     this._telemetryClient.TrackEvent("User wants to change language");
                     return await stepContext.BeginDialogAsync(nameof(ChangeLanguageDialog));
-                    break;
+
                 case Constants.AskAnExpert:
                     this._telemetryClient.TrackEvent("Sending user ask an expert card");
                     await stepContext.Context.SendActivityAsync(MessageFactory.Attachment(AskAnExpertCard.GetCard())).ConfigureAwait(false);

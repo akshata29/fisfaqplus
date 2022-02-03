@@ -102,6 +102,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         private const string EVENT_MESSAGE_RECEIVED = "MessageReceived";
         private const string EVENT_QUESTION_ADDED = "QuestionAdded";
         public const string EVENT_ANSWERED_QUESTION_SINGLE = "QuestionAnsweredSingle";
+        public const string EVENT_LANGUAGE_PREFERENCE_CHANGED = "LanguagePreferenceChanged";
 
         /// <summary>
         /// Represents a set of key/value application configuration properties for FaqPlusPlus bot.
@@ -940,7 +941,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             }
         }
 
-        private async Task ProcessInPersonalChatQuestionsAttachment(ITurnContext<IMessageActivity> turnContext, string filename, IList<AnswerItem> questions, string questionLanguage, CancellationToken cancellationToken)
+        private async Task ProcessInPersonalChatQuestionsAttachment(ITurnContext<IMessageActivity> turnContext, string filename, IList<AnswerItem> questions, string questionLanguageCode, CancellationToken cancellationToken)
         {
             string extension = Path.GetExtension(filename);
             var sw = new System.Diagnostics.Stopwatch();
@@ -949,7 +950,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
             await SendTypingIndicatorAsync(turnContext);
 
             IList<AnswerItem> normalizedQuestions;
-            if (questionLanguage == translatorService.DefaultLanguage)
+            if (questionLanguageCode == translatorService.DefaultLanguageCode)
             {
                 // just use the original list in place
                 normalizedQuestions = questions;
@@ -961,8 +962,8 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                 // first translate all the questions at once
                 var translationQuestions = await this.translatorService.TranslateAsync(
                     questions.Select(x => x.Question).ToArray(),
-                    questionLanguage,
-                    this.translatorService.DefaultLanguage
+                    questionLanguageCode,
+                    this.translatorService.DefaultLanguageCode
                 );
                 sw.Stop();
                 this.telemetryClient.TrackEvent(
@@ -972,7 +973,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                         { "UserName" ,turnContext.Activity.From.Name},
                         { "UserAadId ", turnContext.Activity.From?.AadObjectId ?? "" },
                         { "Product", options.ProductName },
-                        { "Language", questionLanguage },
+                        { "Language", questionLanguageCode },
                     },
                     new Dictionary<string, double>
                     {
@@ -1029,7 +1030,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                     { "UserName" ,turnContext.Activity.From.Name},
                     { "UserAadId ", turnContext.Activity.From?.AadObjectId ?? "" },
                     { "Product", options.ProductName },
-                    { "Language", questionLanguage },
+                    { "Language", questionLanguageCode },
                },
                 new Dictionary<string, double>
                 {
@@ -1039,14 +1040,14 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
 
             this.logger.LogInformation("Queried QnA Maker for {Count} questions in {Seconds} seconds", questions.Count, sw.Elapsed.TotalSeconds);
 
-            if (questionLanguage != translatorService.DefaultLanguage)
+            if (questionLanguageCode != translatorService.DefaultLanguageCode)
             {
                 sw.Start();
                 // first translate all the answers at once
                 var answersInOriginalLanguage = await this.translatorService.TranslateAsync(
                     normalizedQuestions.Select(x => x.Answer).ToArray(),
-                    this.translatorService.DefaultLanguage,
-                    questionLanguage
+                    this.translatorService.DefaultLanguageCode,
+                    questionLanguageCode
                 );
                 sw.Stop();
                 this.telemetryClient.TrackEvent(
@@ -1056,7 +1057,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                         { "UserName" ,turnContext.Activity.From.Name},
                         { "UserAadId ", turnContext.Activity.From?.AadObjectId ?? "" },
                         { "Product", options.ProductName },
-                        { "Language", questionLanguage },
+                        { "Language", questionLanguageCode },
                     },
                     new Dictionary<string, double>
                     {
@@ -1128,7 +1129,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
         {
             string contentUrl = null;
             string filename = null;
-            string language = translatorService.DefaultLanguage;
+            string languageCode = translatorService.DefaultLanguageCode;
 
             IList<AnswerItem> answerItems = null;
 
@@ -1178,18 +1179,18 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Bots
                     case XLSX_EXTENSION:
                         using (Stream stream = await response.Content.ReadAsStreamAsync())
                         {
-                            string tmpLanguage;
-                            (answerItems, tmpLanguage) = XlsxHelper.QuestionsFromXlsx(stream);
-                            if (!string.IsNullOrWhiteSpace(language) && await translatorService.IsValidTranslationLanguage(tmpLanguage))
+                            string tmpLanguageCode;
+                            (answerItems, tmpLanguageCode) = XlsxHelper.QuestionsFromXlsx(stream);
+                            if (!string.IsNullOrWhiteSpace(languageCode) && await translatorService.IsValidTranslationLanguageCode(tmpLanguageCode))
                             {
-                                language = tmpLanguage;
+                                languageCode = tmpLanguageCode;
                             }
                         }
                         break;
                 }
             }
 
-            return (filename, answerItems, language);
+            return (filename, answerItems, languageCode);
         }
 
         /// <summary>
