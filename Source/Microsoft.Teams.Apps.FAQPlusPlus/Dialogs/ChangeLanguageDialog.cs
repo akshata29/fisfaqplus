@@ -61,6 +61,9 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Dialogs
                     new Choice() { Value = "Japanese", Synonyms = new List<string> { "日本語" } },
                     new Choice() { Value = "Korean", Synonyms = new List<string> { "한국어" } },
                     new Choice() { Value = "Vietnamese", Synonyms = new List<string> { "Tiếng Việt", "tieng viet" } },
+                    new Choice() { Value = "Chinese Simplified", Synonyms = new List<string> { "簡體中文", "jiǎn tǐ zhōng wén", "jian ti zhong wen" } },
+                    new Choice() { Value = "Chinese Traditional", Synonyms = new List<string> { "繁體中文", "fán tǐ zhōng wén", "fan ti zhong wen" } },
+
                 },
                 Prompt = MessageFactory.Text($"Your current language preference is '{langPrefName}' what would you like to change it to?"),
             });
