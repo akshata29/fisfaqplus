@@ -5,6 +5,7 @@
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AdaptiveCards;
     using Microsoft.Bot.Builder;
     using Microsoft.Bot.Schema;
 
@@ -14,10 +15,13 @@
     /// </summary>
     public class TranslationMiddleware : IMiddleware
     {
-        private readonly Translator translator;
+        public const string PreferredLanguageSetting = "TranslationLanguagePreference";
+        public const string PauseTranslationSetting = "TranslationLanguagePaused";
+        private readonly TranslatorService translator;
         private readonly TranslationSettings translatorSettings;
 
         private readonly IStatePropertyAccessor<string> languageStateProperty;
+        private readonly IStatePropertyAccessor<bool> pauseTranslationProperty;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TranslationMiddleware"/> class.
@@ -25,7 +29,7 @@
         /// <param name="translator">Translator implementation to be used for text translation.</param>
         /// <param name="translatorSettings">Default Language Settings</param>
         /// <param name="userState">User Parameter</param>
-        public TranslationMiddleware(Translator translator, TranslationSettings translatorSettings, UserState userState)
+        public TranslationMiddleware(TranslatorService translator, TranslationSettings translatorSettings, UserState userState)
         {
             this.translator = translator ?? throw new ArgumentNullException(nameof(translator));
             this.translatorSettings = translatorSettings ?? throw new ArgumentNullException(nameof(translatorSettings));
@@ -34,7 +38,8 @@
                 throw new ArgumentNullException(nameof(userState));
             }
 
-            this.languageStateProperty = userState.CreateProperty<string>("LanguagePreference");
+            this.languageStateProperty = userState.CreateProperty<string>(PreferredLanguageSetting);
+            this.pauseTranslationProperty = userState.CreateProperty<bool>(PauseTranslationSetting);
         }
 
         /// <summary>
@@ -102,6 +107,34 @@
                     activity.Text = await this.translator.TranslateAsync(activity.Text, targetLocale);
                 }
             }
+
+            foreach (var attachment in activity.Attachments)
+            {
+                await TranslateAttachment(attachment, targetLocale, cancellationToken);
+            }
+        }
+
+        private async Task TranslateAttachment(Attachment attachment, string targetLocale, CancellationToken cancellationToken)
+        {
+            switch (attachment.Content)
+            {
+                case AdaptiveCard card:
+                    await TranslateAdaptiveCard(card, targetLocale, cancellationToken);
+                    break;
+                default:
+                    // do nothing
+                    break;
+            }
+        }
+
+        private async Task TranslateAdaptiveCard(AdaptiveCard card, string targetLocale, CancellationToken cancellationToken)
+        {
+            var block1 = card.Body[0] as AdaptiveTextBlock;
+            if (block1 != null && block1.Text == "Here's what I found:")
+            {
+                var answerTextBlock = (AdaptiveTextBlock)card.Body[1];
+                answerTextBlock.Text = await this.translator.TranslateAsync(answerTextBlock.Text, targetLocale, cancellationToken);
+            }
         }
 
         private async Task<(bool, string)> ShouldTranslateAsync(ITurnContext turnContext, CancellationToken cancellationToken = default(CancellationToken))
@@ -110,6 +143,17 @@
 
             try
             {
+                string text = turnContext.Activity.Text;
+
+                // dont translate if the bot has temporarily disabled it
+                // e.g. when receiving the language preference from the user
+                bool translationPaused = await pauseTranslationProperty.GetAsync(turnContext, () => false, cancellationToken);
+                if (translationPaused)
+                {
+                    return (false, defaultLanguage);
+                }
+
+                // is the user's preferred language different from the default?
                 string userLanguage = await this.languageStateProperty.GetAsync(turnContext, () => defaultLanguage, cancellationToken) ?? defaultLanguage;
 
                 return (userLanguage != defaultLanguage, userLanguage);

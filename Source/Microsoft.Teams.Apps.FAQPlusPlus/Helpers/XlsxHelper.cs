@@ -18,7 +18,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Helpers
         /// </summary>
         /// <param name="stream">a stream which will bet written to</param>
         /// <returns>A list of question/answer pairs</returns>
-        public static List<AnswerItem> QuestionsFromXlsx(Stream stream)
+        public static (List<AnswerItem>, string language) QuestionsFromXlsx(Stream stream)
         {
             using (SpreadsheetDocument spreadSheet = SpreadsheetDocument.Open(stream, false))
             {
@@ -52,7 +52,20 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Helpers
                     questions.Add(item);
                 }
 
-                return questions;
+                string language;
+                try
+                {
+                    // check if the first data row has a language set
+                    Cell languageCell = GetCell(worksheetPart.Worksheet, "D", 2);
+                    language = GetTextFromCell(languageCell, stringTable);
+                }
+                catch
+                {
+                    // if there is a problem with the language, default to "en"
+                    language = "en";
+                }
+
+                return (questions, language);
             }
         }
 
