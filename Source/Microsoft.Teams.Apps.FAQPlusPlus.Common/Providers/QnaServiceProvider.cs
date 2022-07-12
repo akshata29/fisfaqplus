@@ -29,7 +29,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
 
         private readonly IConfigurationDataProvider configurationProvider;
         private readonly IQnAMakerClient qnaMakerClient;
-        private readonly QnAMakerRuntimeClient qnaMakerRuntimeClient;
+        private readonly IQnAMakerRuntimeClient qnaMakerRuntimeClient;
 
         /// <summary>
         /// Represents a set of key/value application configuration properties.
@@ -43,7 +43,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
         /// <param name="optionsAccessor">A set of key/value application configuration properties.</param>
         /// <param name="qnaMakerClient">Qna service client.</param>
         /// <param name="qnaMakerRuntimeClient">Qna service runtime client.</param>
-        public QnaServiceProvider(IConfigurationDataProvider configurationProvider, IOptionsMonitor<QnAMakerSettings> optionsAccessor, IQnAMakerClient qnaMakerClient, QnAMakerRuntimeClient qnaMakerRuntimeClient)
+        public QnaServiceProvider(IConfigurationDataProvider configurationProvider, IOptionsMonitor<QnAMakerSettings> optionsAccessor, IQnAMakerClient qnaMakerClient, IQnAMakerRuntimeClient qnaMakerRuntimeClient)
         {
             this.configurationProvider = configurationProvider;
             this.qnaMakerClient = qnaMakerClient;
@@ -222,13 +222,13 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.Common.Providers
             {
                 queryDTO.Context = new QueryDTOContext
                 {
-                    PreviousQnaId = Convert.ToInt32(previousQnAId),
+                    PreviousQnaId = previousQnAId,
                     PreviousUserQuery = previousUserQuery,
                 };
             }
 
-            QnASearchResultList qnASearchResultList = await this.qnaMakerClient.Knowledgebase.GenerateAnswerAsync(knowledgeBaseId, queryDTO).ConfigureAwait(false);
-            return qnASearchResultList;
+            var qnaSearchResultList = await qnaMakerRuntimeClient.Runtime.GenerateAnswerAsync(knowledgeBaseId, queryDTO);
+            return qnaSearchResultList;
         }
 
         /// <summary>
