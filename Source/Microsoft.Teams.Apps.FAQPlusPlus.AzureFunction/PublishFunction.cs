@@ -67,7 +67,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.AzureFunction
             }
             catch (Exception ex)
             {
-                log.LogError(ex, "Exception occured while publishing knowledge base in QnA Maker.", SeverityLevel.Error);
+                log.LogError(ex, "Exception occured while publishing knowledge base in QnA Maker.\n" + ex.ToString(), SeverityLevel.Error);
                 throw;
             }
         }

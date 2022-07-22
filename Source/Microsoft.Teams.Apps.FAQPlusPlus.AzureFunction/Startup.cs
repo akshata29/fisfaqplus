@@ -6,6 +6,7 @@ using System;
 using Microsoft.Azure.CognitiveServices.Knowledge.QnAMaker;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Teams.Apps.FAQPlusPlus.AzureFunction;
@@ -31,7 +32,9 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus.AzureFunction
         {
             IQnAMakerClient qnaMakerClient = new QnAMakerClient(new ApiKeyServiceClientCredentials(Environment.GetEnvironmentVariable("QnAMakerSubscriptionKey"))) { Endpoint = Environment.GetEnvironmentVariable("QnAMakerApiUrl") };
             builder.Services.AddSingleton<IQnaServiceProvider>((provider) => new QuestionAnsweringQnaProvider(
-                provider.GetRequiredService<IConfigurationDataProvider>(), provider.GetRequiredService<IOptionsMonitor<QnAMakerSettings>>(), qnaMakerClient));
+                provider.GetRequiredService<IConfiguration>(),
+                provider.GetRequiredService<IConfigurationDataProvider>(),
+                provider.GetRequiredService<IOptionsMonitor<QnAMakerSettings>>(), qnaMakerClient));
             builder.Services.AddSingleton<IConfigurationDataProvider, Common.Providers.ConfigurationDataProvider>();
             builder.Services.AddSingleton<ISearchServiceDataProvider>((provider) => new SearchServiceDataProvider(provider.GetRequiredService<IQnaServiceProvider>(), Environment.GetEnvironmentVariable("StorageConnectionString")));
             builder.Services.AddSingleton<IConfigurationDataProvider>(new Common.Providers.ConfigurationDataProvider(Environment.GetEnvironmentVariable("StorageConnectionString")));

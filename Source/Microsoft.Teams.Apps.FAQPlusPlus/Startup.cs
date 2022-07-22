@@ -163,6 +163,7 @@ namespace Microsoft.Teams.Apps.FAQPlusPlus
             string endpointKey = this.Configuration["PrimaryEndpointKey"]; //Task.Run(() => qnaMakerClient.EndpointKeys.GetKeysAsync()).Result.PrimaryEndpointKey;
 
             services.AddSingleton<IQnaServiceProvider>((provider) => new QuestionAnsweringQnaProvider(
+                provider.GetRequiredService<IConfiguration>(),
                 provider.GetRequiredService<Common.Providers.IConfigurationDataProvider>(),
                 provider.GetRequiredService<IOptionsMonitor<QnAMakerSettings>>()));
             services.AddSingleton<IActivityStorageProvider>((provider) => new ActivityStorageProvider(provider.GetRequiredService<IOptionsMonitor<KnowledgeBaseSettings>>()));
