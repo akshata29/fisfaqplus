@@ -177,8 +177,6 @@
     "textAnalyticsLocation": "northeurope",
     "translatorLocation": "northeurope",
     "defaultLocation": "northeurope",
-    "qnaMakerAppServiceName": "[concat(parameters('baseHostingName'), '-qnamaker')]",
-    "qnaMakerAppInsightsName": "[concat(parameters('baseHostingName'), '-qnamaker')]",
     "azureSearchName": "[concat(parameters('baseHostingName'), 'search')]",
     "azureSearchSkus": {
       "F ": "free",
@@ -203,24 +201,6 @@
       "kind": "Storage",
       "sku": {
         "name": "Standard_LRS"
-      }
-    },
-    {
-      "type": "Microsoft.Web/serverfarms",
-      "apiVersion": "2016-09-01",
-      "name": "[variables('hostingPlanName')]",
-      "location": "[variables('defaultLocation')]",
-      "properties": {
-        "name": "[variables('hostingPlanName')]",
-        "hostingEnvironment": "",
-        "numberOfWorkers": 3
-      },
-      "sku": {
-        "name": "[if(variables('isSharedPlan'), concat(variables('skuFamily'),'1'), concat(variables('skuFamily'),parameters('planSize')))]",
-        "tier": "[parameters('sku')]",
-        "size": "[concat(variables('skuFamily'), parameters('planSize'))]",
-        "family": "[variables('skuFamily')]",
-        "capacity": 0
       }
     },
     {
@@ -258,10 +238,6 @@
             {
               "name": "StorageConnectionString",
               "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')),'2015-05-01-preview').key1, ';EndpointSuffix=core.windows.net')]"
-            },
-            {
-              "name": "QnAMakerHostUrl",
-              "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('qnaMakerAppServiceName'))).hostNames[0])]"
             },
             {
               "name": "TenantId",
@@ -329,7 +305,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Web/sites', variables('qnaMakerAppServiceName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts/', variables('textAnalyticsAccountName'))]",
         "[resourceId('Microsoft.Search/searchServices/', variables('azureSearchName'))]",
         "[resourceId('Microsoft.Insights/components/', variables('botAppInsightsName'))]"
@@ -386,10 +361,6 @@
             {
               "name": "StorageConnectionString",
               "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')),'2015-05-01-preview').key1, ';EndpointSuffix=core.windows.net')]"
-            },
-            {
-              "name": "QnAMakerHostUrl",
-              "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('qnaMakerAppServiceName'))).hostNames[0])]"
             },
             {
               "name": "TenantId",
@@ -457,7 +428,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Web/sites', variables('qnaMakerAppServiceName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts/', variables('textAnalyticsAccountName'))]",
         "[resourceId('Microsoft.Search/searchServices/', variables('azureSearchName'))]",
         "[resourceId('Microsoft.Insights/components/', variables('botAppInsightsName'))]"
@@ -682,65 +652,6 @@
       }
     },
     {
-      "type": "Microsoft.CognitiveServices/accounts",
-      "kind": "TextTranslation",
-      "name": "[variables('translatorAccountName')]",
-      "apiVersion": "2022-03-01",
-      "location": "[variables('translatorLocation')]",
-      "sku": {
-        "name": "S1"
-      },
-      "properties": {
-        "customSubDomainName": "[variables('translatorAccountName')]",        
-        "publicNetworkAccess": "Enabled"
-      }
-    },
-    {
-      "type": "Microsoft.CognitiveServices/accounts",
-      "kind": "TextAnalytics",
-      "name": "[variables('textAnalyticsAccountName')]",
-      "apiVersion": "2022-03-01",
-      "location": "[variables('textAnalyticsLocation')]",
-      "sku": {
-        "name": "[parameters('textAnalyticsSku')]"
-      },
-      "properties": {
-        "apiProperties": {
-          "qnaAzureSearchEndpointId": "[resourceId('Microsoft.Search/searchServices', variables('azureSearchName'))]",
-          "qnaAzureSearchEndpointKey": "[listadminkeys(resourceId('Microsoft.Search/searchServices', variables('azureSearchName')), '2015-08-19').primaryKey]"
-        },
-        "customSubDomainName": "[variables('textAnalyticsAccountName')]",
-        "networkAcls": {
-            "defaultAction": "Allow",
-            "virtualNetworkRules": [],
-            "ipRules": []
-        },
-        "publicNetworkAccess": "Enabled"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/Sites', variables('qnaMakerAppServiceName'))]",
-        "[resourceId('Microsoft.Search/searchServices/', variables('azureSearchName'))]",
-        "[resourceId('microsoft.insights/components/', variables('qnaMakerAppInsightsName'))]"
-      ]
-    },
-    {
-      "name": "[variables('azureSearchName')]",
-      "type": "Microsoft.Search/searchServices",
-      "apiVersion": "2015-08-19",
-      "location": "[variables('defaultLocation')]",
-      "tags": {
-        "isqnamaker": "true"
-      },
-      "properties": {
-        "replicaCount": 1,
-        "partitionCount": 1,
-        "hostingMode": "default"
-      },
-      "sku": {
-        "name": "[toLower(variables('azureSearchSkuValue'))]"
-      }
-    },
-    {
       "type": "Microsoft.Web/sites",
       "apiVersion": "2016-08-01",
       "name": "[variables('functionAppName')]",
@@ -835,70 +746,6 @@
             "IsManualIntegration": true
           },
           "condition": "[not(empty(parameters('gitRepoUrl')))]"
-        }
-      ]
-    },
-    {
-      "type": "Microsoft.Web/sites",
-      "apiVersion": "2016-08-01",
-      "name": "[variables('qnaMakerAppServiceName')]",
-      "location": "[variables('defaultLocation')]",
-      "properties": {
-        "enabled": true,
-        "siteConfig": {
-          "cors": {
-            "allowedOrigins": [
-              "*"
-            ]
-          }
-        },
-        "name": "[variables('qnaMakerAppServiceName')]",
-        "serverFarmId": "[concat('/subscriptions/', subscription().subscriptionId,'/resourcegroups/', resourceGroup().name, '/providers/Microsoft.Web/serverfarms/', variables('hostingPlanName'))]",
-        "hostingEnvironment": ""
-      },
-      "tags": {
-        "isqnamaker": "true",
-        "[concat('hidden-related:', '/subscriptions/', subscription().subscriptionId,'/resourcegroups/', resourceGroup().name, '/providers/Microsoft.Web/serverfarms/', variables('hostingPlanName'))]": "empty"
-      },
-      "dependsOn": [
-        "[concat('Microsoft.Web/serverfarms/', variables('hostingPlanName'))]"
-      ],
-      "resources": [
-        {
-          "name": "[variables('qnaMakerAppInsightsName')]",
-          "type": "microsoft.insights/components",
-          "kind": "web",
-          "apiVersion": "2015-05-01",
-          "location": "[parameters('location')]",
-          "tags": {
-            "[concat('hidden-link:', resourceId('Microsoft.Web/sites/', variables('qnaMakerAppServiceName')))]": "Resource"
-          },
-          "dependsOn": [
-            "[resourceId('Microsoft.Web/sites/', variables('qnaMakerAppServiceName'))]"
-          ],
-          "properties": {
-            "ApplicationId": "[variables('qnaMakerAppServiceName')]"
-          }
-        },
-        {
-          "apiVersion": "2015-08-01",
-          "name": "appsettings",
-          "type": "config",
-          "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', variables('qnaMakerAppServiceName'))]",
-            "[resourceId('Microsoft.Search/searchServices/', variables('azureSearchName'))]"
-          ],
-          "properties": {
-            "AzureSearchName": "[variables('azureSearchName')]",
-            "AzureSearchAdminKey": "[listAdminKeys(resourceId('Microsoft.Search/searchServices/', variables('azureSearchName')), '2015-08-19').primaryKey]",
-            "UserAppInsightsKey": "[reference(resourceId('Microsoft.Insights/components/', variables('botAppInsightsName')), '2015-05-01').InstrumentationKey]",
-            "UserAppInsightsName": "[variables('botAppInsightsName')]",
-            "UserAppInsightsAppId": "[reference(resourceId('Microsoft.Insights/components/', variables('botAppInsightsName')), '2015-05-01').AppId]",
-            "PrimaryEndpointKey": "[concat(variables('qnaMakerAppServiceName'), '-PrimaryEndpointKey')]",
-            "SecondaryEndpointKey": "[concat(variables('qnaMakerAppServiceName'), '-SecondaryEndpointKey')]",
-            "DefaultAnswer": "No good match found in KB.",
-            "QNAMAKER_EXTENSION_VERSION": "latest"
-          }
         }
       ]
     }
