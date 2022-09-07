@@ -303,10 +303,7 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/', variables('textAnalyticsAccountName'))]",
-        "[resourceId('Microsoft.Search/searchServices/', variables('azureSearchName'))]",
         "[resourceId('Microsoft.Insights/components/', variables('botAppInsightsName'))]"
       ],
       "resources": [
@@ -426,10 +423,7 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/', variables('textAnalyticsAccountName'))]",
-        "[resourceId('Microsoft.Search/searchServices/', variables('azureSearchName'))]",
         "[resourceId('Microsoft.Insights/components/', variables('botAppInsightsName'))]"
       ],
       "resources": [
@@ -553,9 +547,7 @@
       "name": "[variables('configAppName')]",
       "location": "[variables('defaultLocation')]",
       "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/', variables('textAnalyticsAccountName'))]",
         "[resourceId('Microsoft.Insights/components/', variables('botAppInsightsName'))]"
       ],
       "kind": "app",
@@ -657,7 +649,6 @@
       "name": "[variables('functionAppName')]",
       "location": "[variables('defaultLocation')]",
       "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
       ],
       "kind": "functionapp",
